@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./datasets:/datasets
+      - ./models_output:/models_output
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - app-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    environment:
+      - VITE_API_URL=http://backend:8000
+
+networks:
+  app-network:
+    driver: bridge
