@@ -10,6 +10,14 @@ services:
       - PYTHONUNBUFFERED=1
     networks:
       - app-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 
   frontend:
     build: ./frontend
