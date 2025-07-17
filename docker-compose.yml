@@ -1,11 +1,13 @@
 services:
   backend:
     build: ./backend
+    gpus: all
     ports:
       - "8000:8000"
     volumes:
       - ./datasets:/datasets
       - ./models_output:/models_output
+      - ./backend/app:/app/app
     environment:
       - PYTHONUNBUFFERED=1
     networks:
@@ -27,6 +29,9 @@ services:
       - backend
     networks:
       - app-network
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     environment:
       - VITE_API_URL=http://backend:8000
 
