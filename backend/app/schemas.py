@@ -24,6 +24,7 @@ class JobStatus(BaseModel):
     status: str
     progress: int
     submitted_at: datetime
+    metrics_json: Optional[Dict[str, float]] = None
     model_config = ConfigDict(from_attributes=True)
 
 

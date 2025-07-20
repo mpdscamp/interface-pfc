@@ -35,12 +35,24 @@ os.makedirs(OUT_ROOT, exist_ok=True)
 def _progress_cb_factory(job: Job, db: Session) -> Callable[[int], None]:
     def _cb(info):
         if isinstance(info, dict):
-            job.progress = int(info.get("progress", job.progress))
+            # integer progress for the ProgressBar
+            if "progress" in info:
+                job.progress = int(info["progress"])
+
             mj = job.metrics_json or {}
             if "loss" in info:
-                mj["current_loss"] = info["loss"]
+                mj["current_loss"] = round(info["loss"], 4)
             if "epoch" in info:
                 mj["current_epoch"] = info["epoch"]
+            if "batch" in info:
+                mj["current_batch"] = info["batch"]
+            if "elapsed" in info:
+                mj["elapsed"] = round(info["elapsed"], 2)
+            if "eta" in info and info["eta"] is not None:
+                mj["eta"] = round(info["eta"], 2)
+            if "progress" in info:
+                mj["detailed_progress"] = round(info["progress"], 2)
+
             job.metrics_json = mj
         else:
             job.progress = int(info)

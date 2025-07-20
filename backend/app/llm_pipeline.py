@@ -1,4 +1,4 @@
-import os, csv, glob, math, datetime, random, sys
+import os, csv, glob, math, datetime, random, sys, time
 from typing import Tuple, Dict, List, Callable
 
 import torch
@@ -31,7 +31,7 @@ def fine_tune_llm(
     max_length: int = 256,
 ) -> Tuple[str, Dict[str, float], List[List[int]]]:
     """
-    Trains a HuggingFace model on a CSV using the same logic as your script.
+    Trains a HuggingFace model on a CSV
     Returns: (last_checkpoint_path, metrics_dict, history_batches)
     """
     global _current_tuner
@@ -48,7 +48,7 @@ def fine_tune_llm(
 
 def save_checkpoint_llm():
     """
-    External entry‑point: request an immediate checkpoint.
+    External entry-point: request an immediate checkpoint.
     """
     if _current_tuner is None:
         raise RuntimeError("No active training session")
@@ -57,7 +57,7 @@ def save_checkpoint_llm():
 
 def stop_training_llm():
     """
-    External entry‑point: request checkpoint + graceful stop.
+    External entry-point: request checkpoint + graceful stop.
     """
     if _current_tuner is None:
         raise RuntimeError("No active training session")
@@ -127,6 +127,7 @@ class FineTuner:
         self.warmup_steps      = int(self.total_steps * self.warmup_ratio)
 
     def train(self) -> Tuple[str, Dict[str, float], List[List[int]]]:
+        self.start_time = time.time()
         # prepare optimizer, scheduler, scaler
         optimizer = AdamW(
             filter(lambda p: p.requires_grad, self.model.parameters()),
@@ -189,11 +190,19 @@ class FineTuner:
                 avg_loss    = epoch_loss / batches_done
 
                 # progress callback
+                step     = epoch * self.batches_per_epoch + (batch_idx + 1)
+                progress = step / self.total_steps * 100
+                elapsed  = time.time() - self.start_time
+                eta      = (elapsed / step) * (self.total_steps - step) if step > 0 else None
+
                 if self.update_progress_cb:
                     self.update_progress_cb({
-                        "epoch": epoch+1,
-                        "batch": batch_idx+1,
-                        "avg_loss": avg_loss
+                        "progress":     progress,
+                        "loss":         avg_loss,
+                        "epoch":        epoch+1,
+                        "batch":        batch_idx+1,
+                        "elapsed":      elapsed,
+                        "eta":          eta
                     })
 
                 # save history if you want
@@ -232,7 +241,6 @@ class FineTuner:
         epoch_loss: float = None,
         batches_done: int = None
     ):
-        """Exactly your old save_checkpoint logic, but writing into self.ckpt_dir"""
         now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         fname = f"checkpoint-epoch{epoch+1}"
         if batch_idx is not None:

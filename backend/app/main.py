@@ -11,6 +11,7 @@ from .database import SessionLocal, engine
 from .models import Base, Job
 from .schemas import JobCreateTrain, JobCreateInfer, JobStatus, InferenceResult
 from .tasks import run_job
+from .llm_pipeline import save_checkpoint_llm, stop_training_llm
 
 # --------------------------------------------------------------------------- #
 #                            FASTAPI  BOOTSTRAP                               #
@@ -110,6 +111,31 @@ def get_job(job_id: str):
         raise HTTPException(404, "Job not found")
     return JobStatus.from_orm(job)
 
+
+@app.post("/api/jobs/{job_id}/checkpoint/save")
+def api_save_checkpoint(job_id: str):
+    db = next(get_db())
+    job = db.query(Job).get(job_id)
+    if not job or job.kind != "llm_train" or job.status != "RUNNING":
+        raise HTTPException(400, "No running LLM training job with this ID")
+    try:
+        save_checkpoint_llm()
+        return {"message": "Checkpoint requested"}
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/jobs/{job_id}/checkpoint/stop")
+def api_stop_training(job_id: str):
+    db = next(get_db())
+    job = db.query(Job).get(job_id)
+    if not job or job.kind != "llm_train" or job.status != "RUNNING":
+        raise HTTPException(400, "No running LLM training job with this ID")
+    try:
+        stop_training_llm()
+        return {"message": "Stop requested"}
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
 
 # --------------------------------------------------------------------------- #
 #                        DATASET &  MODEL ENDPOINTS                           #

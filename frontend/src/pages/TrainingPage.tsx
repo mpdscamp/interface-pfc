@@ -15,27 +15,45 @@ export default function TrainingPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ ok:boolean; text:string } | null>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
   const loadDatasets = useCallback(() =>
-    fetch('/api/datasets')
-      .then(r => r.json()).then(setDatasets), []);
+    fetch('/api/datasets').then(r => r.json()).then(setDatasets), []);
 
   useEffect(() => { loadDatasets(); }, [loadDatasets]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setMsg(null);
     const res = await fetch('/api/jobs/train', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         kind,
         ...(kind === 'llm' && { model_name: modelName }),
         dataset_filename: dataset
       })
     });
+    const data = await res.json();
     setLoading(false);
-    setMsg({ ok: res.ok, text: res.ok ? 'Training job queued!' : 'Failed to queue job' });
-    if (res.ok) setDataset('');
+    if (res.ok) {
+      setMsg({ ok: true, text: 'Training job queued!' });
+      setCurrentJobId(data.id);
+      setDataset('');
+    } else {
+      setMsg({ ok: false, text: 'Failed to queue job' });
+    }
   };
+
+  const handleSave = async () => {
+    if (!currentJobId) return;
+    await fetch(`/api/jobs/${currentJobId}/checkpoint/save`, { method: 'POST' });
+  };
+
+  const handleStop = async () => {
+    if (!currentJobId) return;
+    await fetch(`/api/jobs/${currentJobId}/checkpoint/stop`, { method: 'POST' });
+  };
+
 
   return (
     <Box>
@@ -94,6 +112,16 @@ export default function TrainingPage() {
       </Grid>
 
       <Typography variant="h5" sx={{ mt:3 }}>Job Status</Typography>
+      {kind === 'llm' && currentJobId && (
+        <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+          <Button variant="outlined" onClick={handleSave}>
+            Save Checkpoint
+          </Button>
+          <Button variant="contained" color="error" onClick={handleStop}>
+            Stop Training
+          </Button>
+        </Box>
+      )}
       <JobStatusTable />
     </Box>
   );
