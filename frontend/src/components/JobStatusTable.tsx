@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Paper, LinearProgress, Link
@@ -6,7 +6,7 @@ import {
 import { Link as RouterLink } from 'react-router-dom';
 
 interface Job {
-  job_id: string;
+  id: string;
   kind: string;               // tabular_train, llm_infer, …
   status: string;
   progress: number;
@@ -38,7 +38,7 @@ export default function JobStatusTable() {
         </TableHead>
         <TableBody>
           {jobs.map(j => (
-            <TableRow key={j.job_id}>
+            <TableRow key={j.id}>
               <TableCell>{prettyKind(j.kind)}</TableCell>
               <TableCell>{j.status}</TableCell>
               <TableCell sx={{ minWidth: 150 }}>
@@ -49,7 +49,7 @@ export default function JobStatusTable() {
               <TableCell>{new Date(j.submitted_at).toLocaleString()}</TableCell>
               <TableCell>
                 {j.kind.endsWith('_infer') && j.status === 'COMPLETED' && (
-                  <Link component={RouterLink} to={`/results/${j.job_id}`}>View</Link>
+                  <Link component={RouterLink} to={`/results/${j.id}`}>View</Link>
                 )}
               </TableCell>
             </TableRow>

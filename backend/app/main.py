@@ -62,7 +62,7 @@ def create_train_job(payload: JobCreateTrain, background_tasks: BackgroundTasks)
     db.add(job); db.commit()
 
     background_tasks.add_task(run_job, job_id)
-    return JobStatus.from_orm(job)
+    return JobStatus.model_validate(job)
 
 
 @app.post("/api/jobs/infer", response_model=JobStatus)

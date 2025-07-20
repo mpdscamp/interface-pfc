@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Dict, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 # ── payloads ────────────────────────────────────────────────────────────────
@@ -19,14 +19,12 @@ class JobCreateInfer(BaseModel):
 
 # ── responses ───────────────────────────────────────────────────────────────
 class JobStatus(BaseModel):
-    job_id: str
+    id: str
     kind: str
     status: str
     progress: int
     submitted_at: datetime
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InferenceResult(BaseModel):
