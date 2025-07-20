@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 from .database import SessionLocal
 from .models import Job
 from .ml_pipeline import infer_model, train_model
-from .llm_pipeline import fine_tune_llm, infer_llm
+from .llm_pipeline import fine_tune_llm
+# , infer_llm
 
 # --------------------------------------------------------------------------- #
 #                               PATHS                                         #
@@ -32,10 +33,19 @@ os.makedirs(OUT_ROOT, exist_ok=True)
 #                          HELPER FUNCTIONS                                   #
 # --------------------------------------------------------------------------- #
 def _progress_cb_factory(job: Job, db: Session) -> Callable[[int], None]:
-    def _cb(pct: int):
-        job.progress = int(pct)
-        db.commit()
-    return _cb
+    def _cb(info):
+        if isinstance(info, dict):
+            job.progress = int(info.get("progress", job.progress))
+            mj = job.metrics_json or {}
+            if "loss" in info:
+                mj["current_loss"] = info["loss"]
+            if "epoch" in info:
+                mj["current_epoch"] = info["epoch"]
+            job.metrics_json = mj
+        else:
+            job.progress = int(info)
+        db.commit()    
+        return _cb
 
 
 def _fail(job: Job, db: Session, exc: Exception):
@@ -92,13 +102,14 @@ def run_job(job_id: str):
             job.result_path = ckpt
 
         elif job.kind == "llm_infer":
-            metrics, cm, res = infer_llm(
-                os.path.join(OUT_ROOT, "llm_checkpoints", job.checkpoint_dir),
-                ds_path,
-                OUT_ROOT,
-                progress_cb,
-            )
-            job.result_path = res
+            # metrics, cm, res = infer_llm(
+            #     os.path.join(OUT_ROOT, "llm_checkpoints", job.checkpoint_dir),
+            #     ds_path,
+            #     OUT_ROOT,
+            #     progress_cb,
+            # )
+            # job.result_path = res
+            job.result_path = None
         # --------------------------------------------------------------------
 
         job.metrics_json = metrics
