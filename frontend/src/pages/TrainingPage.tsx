@@ -17,14 +17,14 @@ export default function TrainingPage() {
   const [msg, setMsg] = useState<{ ok:boolean; text:string } | null>(null);
 
   const loadDatasets = useCallback(() =>
-    fetch(`${import.meta.env.VITE_API_URL}/api/datasets`)
+    fetch('/api/datasets')
       .then(r => r.json()).then(setDatasets), []);
 
   useEffect(() => { loadDatasets(); }, [loadDatasets]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setMsg(null);
-    await fetch(`${import.meta.env.VITE_API_URL}/api/jobs/train`, {
+    const res = await fetch('/api/jobs/train', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         kind,

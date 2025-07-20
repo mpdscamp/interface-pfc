@@ -16,20 +16,42 @@ export default function InferencePage() {
   const [checkpoint, setCheckpoint] = useState('');
   const [dataset, setDataset]       = useState('');
 
-  const loadDatasets = useCallback(() =>
-    fetch(`${import.meta.env.VITE_API_URL}/api/datasets`).then(r=>r.json()).then(setDatasets), []);
+  const loadDatasets = useCallback(async () => {
+    try {
+      const r = await fetch('/api/datasets');
+      if (!r.ok) throw new Error(r.statusText);
+      setDatasets(await r.json());
+    } catch (err) {
+      console.error('Failed to load datasets:', err);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/models`).then(r=>r.json()).then(setModels);
+  (async () => {
+    try {
+      const r = await fetch('/api/models');
+      if (!r.ok) throw new Error(r.statusText);
+      setModels(await r.json());
+    } catch (err) {
+      console.error('Failed to load models:', err);
+    }
+  })();
     loadDatasets();
   }, [loadDatasets]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch(`${import.meta.env.VITE_API_URL}/api/jobs/infer`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ kind, checkpoint, dataset_filename:dataset })
-    });
+    try {
+      const res = await fetch('/api/jobs/infer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, checkpoint, dataset_filename: dataset })
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.statusText}`);
+      // you might want to reset your form here or show a notification
+    } catch (err) {
+      console.error('Failed to start inference:', err);
+    }
   };
 
   const modelsOfKind = models.filter(m => m.kind === kind);

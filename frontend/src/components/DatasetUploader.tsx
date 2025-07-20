@@ -1,4 +1,4 @@
-import React, { useState, DragEvent } from 'react';
+import { useState, DragEvent } from 'react';
 import {
   Box, Button, Typography, CircularProgress, Alert
 } from '@mui/material';
@@ -17,15 +17,21 @@ export default function DatasetUploader({ onUploaded }: Props) {
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setMsg({ ok:false, text:'Only .csv files are accepted' }); return;
     }
-    setLoading(true); setMsg(null);
-
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/datasets/upload`, { method:'POST', body:form });
-    setLoading(false);
-
-    if (res.ok)  { setMsg({ ok:true, text:`Uploaded ${file.name}` }); onUploaded(); }
-    else         { setMsg({ ok:false, text:`Upload failed: ${res.statusText}` }); }
+    setLoading(true);
+    setMsg(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/datasets/upload', { method:'POST', body: form });
+      if (!res.ok) throw new Error(`Server responded ${res.status}: ${res.statusText}`);
+      setMsg({ ok: true, text: `Uploaded ${file.name}` });
+      onUploaded();
+    } catch (err) {
+      console.error(err);
+      setMsg({ ok: false, text: `Upload failed: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {

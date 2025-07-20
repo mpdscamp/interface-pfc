@@ -16,7 +16,7 @@ interface Job {
 export default function JobStatusTable() {
   const [jobs, setJobs] = useState<Job[]>([]);
 
-  const load = () => fetch(`${import.meta.env.VITE_API_URL}/api/jobs`)
+  const load = () => fetch('/api/jobs')
     .then(r => r.json()).then(setJobs);
 
   useEffect(() => { load(); const t = setInterval(load, 2000); return () => clearInterval(t); }, []);
