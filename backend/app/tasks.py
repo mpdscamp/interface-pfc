@@ -13,11 +13,13 @@ from datetime import datetime
 from typing import Callable
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from .database import SessionLocal
 from .models import Job
 from .ml_pipeline import infer_model, train_model
 from .llm_pipeline import fine_tune_llm
+
 # , infer_llm
 
 # --------------------------------------------------------------------------- #
@@ -34,30 +36,36 @@ os.makedirs(OUT_ROOT, exist_ok=True)
 # --------------------------------------------------------------------------- #
 def _progress_cb_factory(job: Job, db: Session) -> Callable[[int], None]:
     def _cb(info):
-        if isinstance(info, dict):
-            # integer progress for the ProgressBar
-            if "progress" in info:
-                job.progress = int(info["progress"])
+        session = SessionLocal()
+        try:
+            j = session.get(Job, job.id)
+            if isinstance(info, dict):
+                # integer progress for the ProgressBar
+                if "progress" in info:
+                    j.progress = int(info["progress"])
 
-            mj = job.metrics_json or {}
-            if "loss" in info:
-                mj["current_loss"] = round(info["loss"], 4)
-            if "epoch" in info:
-                mj["current_epoch"] = info["epoch"]
-            if "batch" in info:
-                mj["current_batch"] = info["batch"]
-            if "elapsed" in info:
-                mj["elapsed"] = round(info["elapsed"], 2)
-            if "eta" in info and info["eta"] is not None:
-                mj["eta"] = round(info["eta"], 2)
-            if "progress" in info:
-                mj["detailed_progress"] = round(info["progress"], 2)
+                mj = j.metrics_json or {}
+                if "loss" in info:
+                    mj["current_loss"] = round(info["loss"], 4)
+                if "epoch" in info:
+                    mj["current_epoch"] = info["epoch"]
+                if "batch" in info:
+                    mj["current_batch"] = info["batch"]
+                if "elapsed" in info:
+                    mj["elapsed"] = round(info["elapsed"], 2)
+                if "eta" in info and info["eta"] is not None:
+                    mj["eta"] = round(info["eta"], 2)
+                if "progress" in info:
+                    mj["detailed_progress"] = round(info["progress"], 2)
 
-            job.metrics_json = mj
-        else:
-            job.progress = int(info)
-        db.commit()    
-        return _cb
+                j.metrics_json = mj
+            else:
+                j.progress = int(info)
+            flag_modified(j, "metrics_json")
+            session.commit()    
+        finally:
+            session.close()
+    return _cb
 
 
 def _fail(job: Job, db: Session, exc: Exception):
@@ -109,7 +117,7 @@ def run_job(job_id: str):
         # ----------------------------------------------------------- LLM -----
         elif job.kind == "llm_train":
             ckpt, metrics, cm = fine_tune_llm(
-                ds_path, job.model_name, OUT_ROOT, progress_cb
+                job.id, ds_path, job.model_name, OUT_ROOT, progress_cb
             )
             job.result_path = ckpt
 

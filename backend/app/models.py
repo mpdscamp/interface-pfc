@@ -1,6 +1,7 @@
 import datetime
 from sqlalchemy import Column, String, DateTime, Integer, JSON
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.mutable import MutableDict
 
 Base = declarative_base()
 
@@ -32,5 +33,5 @@ class Job(Base):
     submitted_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # optional metrics captured by tasks.py (nice for admin UIs)
-    metrics_json = Column(JSON, nullable=True)
+    metrics_json = Column(MutableDict.as_mutable(JSON), nullable=True, default=dict)
     confusion_matrix = Column(JSON, nullable=True)

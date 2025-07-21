@@ -127,33 +127,19 @@ def train_model(
     conf_mat  : List[List[int]]
     """
     t0 = time.time()
-    if update_progress_cb:
-        update_progress_cb(5)
 
     df = pd.read_csv(dataset_path, low_memory=False)
     label_col = _detect_label_column(df)
     df[label_col] = df[label_col].apply(_binary_label)
 
-    if update_progress_cb:
-        update_progress_cb(20)
-
     X_train, y_train, X_val, y_val = _split_data(df, label_col)
     X_train, y_train = _balance_smote(X_train, y_train)
-
-    if update_progress_cb:
-        update_progress_cb(45)
 
     pipe = _make_pipeline(X_train.shape[1])
     pipe.fit(X_train, y_train)
 
-    if update_progress_cb:
-        update_progress_cb(70)
-
     y_pred = pipe.predict(X_val)
     metrics, cm = _metric_dict(y_val, y_pred)
-
-    if update_progress_cb:
-        update_progress_cb(85)
 
     # save checkpoint (pipeline inc. scaler + model) & metadata
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -167,9 +153,6 @@ def train_model(
     meta_path = ckpt_path.with_suffix(".json")
     with open(meta_path, "w") as fp:
         json.dump({"metrics": metrics, "confusion_matrix": cm}, fp, indent=2)
-
-    if update_progress_cb:
-        update_progress_cb(100)
 
     print(
         f"[TRAIN] {dataset_path} → {ckpt_path}  "

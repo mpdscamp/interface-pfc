@@ -1,9 +1,8 @@
 from uuid import uuid4
 from typing import List, Dict
 
-import os
-import json
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+import os, json, threading
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -46,7 +45,8 @@ def get_db():
 #                               JOB ENDPOINTS                                 #
 # --------------------------------------------------------------------------- #
 @app.post("/api/jobs/train", response_model=JobStatus)
-def create_train_job(payload: JobCreateTrain, background_tasks: BackgroundTasks):
+# def create_train_job(payload: JobCreateTrain, background_tasks: BackgroundTasks):
+def create_train_job(payload: JobCreateTrain):
     """
     payload.kind  →  "tabular" | "llm"
     """
@@ -62,12 +62,15 @@ def create_train_job(payload: JobCreateTrain, background_tasks: BackgroundTasks)
     db: Session = next(get_db())
     db.add(job); db.commit()
 
-    background_tasks.add_task(run_job, job_id)
+    # background_tasks.add_task(run_job, job_id)
+    t = threading.Thread(target=run_job, args=(job_id,), daemon=True)
+    t.start()
     return JobStatus.model_validate(job)
 
 
 @app.post("/api/jobs/infer", response_model=JobStatus)
-def create_infer_job(payload: JobCreateInfer, background_tasks: BackgroundTasks):
+# def create_infer_job(payload: JobCreateInfer, background_tasks: BackgroundTasks):
+def create_infer_job(payload: JobCreateInfer):
     """
     payload.checkpoint is:
         – *.joblib                   (tabular)
@@ -92,20 +95,20 @@ def create_infer_job(payload: JobCreateInfer, background_tasks: BackgroundTasks)
     db: Session = next(get_db())
     db.add(Job(**job_kwargs)); db.commit()
 
-    background_tasks.add_task(run_job, job_id)
+    # background_tasks.add_task(run_job, job_id)
+    t = threading.Thread(target=run_job, args=(job_id,), daemon=True)
+    t.start()
     return JobStatus.from_orm(Job(**job_kwargs))
 
 
 @app.get("/api/jobs", response_model=List[JobStatus])
-def list_jobs():
-    db: Session = next(get_db())
+def list_jobs(db: Session = Depends(get_db)):
     jobs = db.query(Job).order_by(Job.submitted_at.desc()).all()
-    return [JobStatus.from_orm(j) for j in jobs]
+    return [JobStatus.model_validate(j) for j in jobs]
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobStatus)
-def get_job(job_id: str):
-    db: Session = next(get_db())
+def get_job(job_id: str, db: Session = Depends(get_db)):
     job = db.query(Job).get(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -119,7 +122,7 @@ def api_save_checkpoint(job_id: str):
     if not job or job.kind != "llm_train" or job.status != "RUNNING":
         raise HTTPException(400, "No running LLM training job with this ID")
     try:
-        save_checkpoint_llm()
+        save_checkpoint_llm(job_id)
         return {"message": "Checkpoint requested"}
     except RuntimeError as e:
         raise HTTPException(400, str(e))
@@ -132,7 +135,7 @@ def api_stop_training(job_id: str):
     if not job or job.kind != "llm_train" or job.status != "RUNNING":
         raise HTTPException(400, "No running LLM training job with this ID")
     try:
-        stop_training_llm()
+        stop_training_llm(job_id)
         return {"message": "Stop requested"}
     except RuntimeError as e:
         raise HTTPException(400, str(e))

@@ -19,50 +19,6 @@ CANDIDATE_LABELS = [
     "Web_Attack", "Other"
 ]
 
-# global handle to the currently running trainer
-_current_tuner = None
-
-def fine_tune_llm(
-    dataset_path: str,
-    model_name: str,
-    output_root: str,
-    update_progress_cb: Callable[[Dict], None] = None,
-    num_epochs: int = 3,
-    max_length: int = 256,
-) -> Tuple[str, Dict[str, float], List[List[int]]]:
-    """
-    Trains a HuggingFace model on a CSV
-    Returns: (last_checkpoint_path, metrics_dict, history_batches)
-    """
-    global _current_tuner
-    _current_tuner = FineTuner(
-        csv_path=dataset_path,
-        model_name=model_name,
-        output_root=output_root,
-        update_progress_cb=update_progress_cb,
-        num_epochs=num_epochs,
-        max_length=max_length,
-    )
-    return _current_tuner.train()
-
-
-def save_checkpoint_llm():
-    """
-    External entry-point: request an immediate checkpoint.
-    """
-    if _current_tuner is None:
-        raise RuntimeError("No active training session")
-    _current_tuner.request_save()
-
-
-def stop_training_llm():
-    """
-    External entry-point: request checkpoint + graceful stop.
-    """
-    if _current_tuner is None:
-        raise RuntimeError("No active training session")
-    _current_tuner.request_stop()
-
 
 class FineTuner:
     def __init__(
@@ -140,8 +96,11 @@ class FineTuner:
             num_training_steps=self.total_steps,
         )
         scaler = GradScaler()
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.scaler    = scaler
 
-        history: List[List[int]] = []  # you can collect any per‑batch stats here
+        history: List[List[int]] = []
         metrics: Dict[str, float] = {}
 
         for epoch in range(self.num_epochs):
@@ -172,7 +131,7 @@ class FineTuner:
             )
 
             pbar = tqdm(loader, total=len(loader), desc=f"Epoch {epoch+1}/{self.num_epochs}")
-            for batch_idx, batch in enumerate(pbar):
+            for batch_idx, batch in enumerate(pbar):    
                 optimizer.zero_grad()
                 inputs = {k: v.to(self.device) for k, v in batch.items()}
                 with autocast(device_type=self.device.type):
@@ -205,10 +164,8 @@ class FineTuner:
                         "eta":          eta
                     })
 
-                # save history if you want
-                history.append([epoch+1, batch_idx+1, avg_loss])
+                # history.append([epoch+1, batch_idx+1, avg_loss])
 
-                # handle external requests
                 if self._save_request:
                     self._do_checkpoint(epoch, batch_idx, avg_loss, epoch_loss, batches_done)
                     self._save_request = False
@@ -219,7 +176,6 @@ class FineTuner:
 
                 pbar.set_postfix({"loss": f"{avg_loss:.4f}"})
 
-            # end‐of‐epoch checkpoint
             self._do_checkpoint(epoch, None, avg_loss, epoch_loss, batches_done)
 
         metrics["final_avg_loss"] = avg_loss
@@ -275,6 +231,57 @@ class FineTuner:
 
         except Exception as e:
             print(f"[⚠️ checkpoint failed] {e}", file=sys.stderr)
+
+_active_tuners: dict[str, FineTuner] = {}
+
+
+def fine_tune_llm(
+    job_id: str,
+    dataset_path: str,
+    model_name: str,
+    output_root: str,
+    update_progress_cb: Callable[[Dict], None] = None,
+    num_epochs: int = 1,
+    max_length: int = 256,
+) -> Tuple[str, Dict[str, float], List[List[int]]]:
+    """
+    Trains a HuggingFace model on a CSV
+    Returns: (last_checkpoint_path, metrics_dict, history_batches)
+    """
+    tuner = FineTuner(
+        csv_path=dataset_path,
+        model_name=model_name,
+        output_root=output_root,
+        update_progress_cb=update_progress_cb,
+        num_epochs=num_epochs,
+        max_length=max_length,
+    )
+    _active_tuners[job_id] = tuner
+
+    try:
+        return tuner.train()
+    finally:
+        _active_tuners.pop(job_id, None)
+
+
+def save_checkpoint_llm(job_id: str):
+    """
+    External entry-point: request an immediate checkpoint.
+    """
+    tuner = _active_tuners.get(job_id)
+    if tuner is None:
+        raise RuntimeError(f"No active training session for job {job_id}")
+    tuner.request_save()
+
+
+def stop_training_llm(job_id: str):
+    """
+    External entry-point: request checkpoint + graceful stop.
+    """
+    tuner = _active_tuners.get(job_id)
+    if tuner is None:
+        raise RuntimeError(f"No active training session for job {job_id}")
+    tuner.request_stop()
 
 
 class IndexedCSV(Dataset):
