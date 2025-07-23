@@ -1,6 +1,9 @@
 *node_modules*
 package-lock.json
 package.json
+
 *pycache*
+
 datasets/*
 *.db
+models_output/checkpoints/*.pt
