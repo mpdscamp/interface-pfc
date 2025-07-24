@@ -43,7 +43,7 @@ class FineTuner:
         self.seed          = 21023 + 21041
 
         # checkpoint & log dirs
-        self.ckpt_dir = os.path.join(output_root, "checkpoints")
+        self.ckpt_dir = output_root
         self.log_dir  = os.path.join(self.ckpt_dir, "logs")
         os.makedirs(self.ckpt_dir, exist_ok=True)
         os.makedirs(self.log_dir,  exist_ok=True)
@@ -248,10 +248,12 @@ def fine_tune_llm(
     Trains a HuggingFace model on a CSV
     Returns: (last_checkpoint_path, metrics_dict, history_batches)
     """
+    llm_root = os.path.join(output_root, "llm_checkpoints", job_id)
+    os.makedirs(llm_root, exist_ok=True)
     tuner = FineTuner(
         csv_path=dataset_path,
         model_name=model_name,
-        output_root=output_root,
+        output_root=llm_root,
         update_progress_cb=update_progress_cb,
         num_epochs=num_epochs,
         max_length=max_length,

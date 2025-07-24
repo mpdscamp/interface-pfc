@@ -6,4 +6,4 @@ package.json
 
 datasets/*
 *.db
-models_output/checkpoints/*.pt
+*.pt

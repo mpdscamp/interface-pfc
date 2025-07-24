@@ -144,7 +144,7 @@ def train_model(
     # save checkpoint (pipeline inc. scaler + model) & metadata
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     ckpt_name = f"{model_name}__{timestamp}.joblib"
-    ckpt_dir = Path(output_root).joinpath("checkpoints")
+    ckpt_dir = Path(output_root).joinpath("tabular_checkpoints", model_name)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = ckpt_dir / ckpt_name
     joblib.dump(pipe, ckpt_path)

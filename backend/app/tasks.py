@@ -122,13 +122,13 @@ def run_job(job_id: str):
             job.result_path = ckpt
 
         elif job.kind == "llm_infer":
-            # metrics, cm, res = infer_llm(
-            #     os.path.join(OUT_ROOT, "llm_checkpoints", job.checkpoint_dir),
-            #     ds_path,
-            #     OUT_ROOT,
-            #     progress_cb,
-            # )
-            # job.result_path = res
+            metrics, cm, res = infer_llm(
+                os.path.join(OUT_ROOT, "llm_checkpoints", job.checkpoint_dir),
+                ds_path,
+                OUT_ROOT,
+                progress_cb,
+            )
+            job.result_path = res
             job.result_path = None
         # --------------------------------------------------------------------
 

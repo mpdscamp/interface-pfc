@@ -25,10 +25,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATASETS_DIR = "/datasets"
-CHECKPOINT_DIR = "models_output/checkpoints"
-LLM_DIR = "models_output/llm_checkpoints"
-
+DATASETS_DIR        = "/datasets"
+TABULAR_CKPT_DIR    = "models_output/tabular_checkpoints"
+LLM_CKPT_DIR        = "models_output/llm_checkpoints"
 
 # --------------------------------------------------------------------------- #
 #                           DB helper (yield style)                           #
@@ -52,7 +51,7 @@ def create_train_job(payload: JobCreateTrain):
     """
     job_id = str(uuid4())
     job = Job(
-        id=job_id,
+        id=payload.model_name + job_id,
         kind=f"{payload.kind}_train",
         model_name=payload.model_name,
         dataset_filename=payload.dataset_filename,
@@ -168,34 +167,42 @@ async def upload_dataset(file: UploadFile = File(...)):
 @app.get("/api/models", response_model=List[Dict])
 def list_models():
     """
-    Combines both model families so the frontend can show one dropdown.
-    Returns: [{filename/display_name/kind}, …]
+    Scan our two checkpoint roots and return:
+      - for tabular:  model_name/ckpt_file.joblib
+      - for llm:      job_id/ckpt_file.pt
     """
-    models = []
+    models: list[dict] = []
 
-    # tabular
-    for fn in sorted(os.listdir(CHECKPOINT_DIR)):
-        if fn.endswith(".joblib"):
-            ts = fn.split("__")[-1].split(".")[0]
-            models.append(
-                {
-                    "filename": fn,
-                    "display_name": f"{fn.split('__')[0]} @ {ts}",
-                    "kind": "tabular",
-                }
-            )
+    # tabular checkpoints
+    if os.path.isdir(TABULAR_CKPT_DIR):
+        for model_name in sorted(os.listdir(TABULAR_CKPT_DIR)):
+            model_dir = os.path.join(TABULAR_CKPT_DIR, model_name)
+            if not os.path.isdir(model_dir):
+                continue
+            for fn in sorted(os.listdir(model_dir)):
+                if fn.endswith(".joblib"):
+                    ts = fn.split("__")[-1].split(".")[0]
+                    models.append({
+                        "filename":      f"{model_name}/{fn}",
+                        "display_name":  f"{model_name} @ {ts}",
+                        "kind":          "tabular",
+                    })
 
-    # llm
-    if os.path.isdir(LLM_DIR):
-        for d in sorted(os.listdir(LLM_DIR)):
-            if os.path.isdir(os.path.join(LLM_DIR, d)):
-                models.append(
-                    {
-                        "filename": d,
-                        "display_name": f"LLM {d}",
-                        "kind": "llm",
-                    }
-                )
+    # llm checkpoints
+    
+    if os.path.isdir(LLM_CKPT_DIR):
+        for job_id in sorted(os.listdir(LLM_CKPT_DIR)):
+            job_dir = os.path.join(LLM_CKPT_DIR, job_id)
+            if not os.path.isdir(job_dir):
+                continue
+            for fn in sorted(os.listdir(job_dir)):
+                if fn.endswith(".pt"):
+                    timestamp = fn.rsplit("-", 1)[-1].replace(".pt", "")
+                    models.append({
+                        "filename":      f"{job_id}/{fn}",
+                        "display_name":  f"LLM {job_id} @ {timestamp}",
+                        "kind":          "llm",
+                    })
     return models
 
 
