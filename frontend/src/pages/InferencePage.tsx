@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Container, Typography, Button, FormControl, InputLabel,
-  Select, MenuItem, Box, Grid
+  Typography, Button, FormControl, InputLabel, Select, MenuItem, Box, Grid
 } from '@mui/material';
 import JobStatusTable from '../components/JobStatusTable';
 import DatasetUploader from '../components/DatasetUploader';
@@ -57,8 +56,8 @@ export default function InferencePage() {
   const modelsOfKind = models.filter(m => m.kind === kind);
 
   return (
-    <Container maxWidth="md">
-      <Typography variant="h4" gutterBottom>Run Inference</Typography>
+    <Box>
+      <Typography variant="h4" gutterBottom>Inferência</Typography>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
@@ -70,8 +69,8 @@ export default function InferencePage() {
                sx={{ display:'flex', flexDirection:'column', gap:2 }}>
 
             <FormControl fullWidth>
-              <InputLabel>Model Family</InputLabel>
-              <Select value={kind} label="Model Family"
+              <InputLabel>Família de Modelo</ InputLabel>
+              <Select value={kind} label="Família de Modelo"
                       onChange={e => { setKind(e.target.value as any); setCheckpoint(''); }}>
                 <MenuItem value="tabular">Tabular</MenuItem>
                 <MenuItem value="llm">LLM</MenuItem>
@@ -89,8 +88,8 @@ export default function InferencePage() {
             </FormControl>
 
             <FormControl fullWidth required>
-              <InputLabel>Dataset</InputLabel>
-              <Select value={dataset} label="Dataset"
+              <InputLabel>Conjunto de dados</InputLabel>
+              <Select value={dataset} label="Conjunto de dados"
                       onChange={e => setDataset(e.target.value)}>
                 {datasets.map(d => (
                   <MenuItem key={d.filename} value={d.filename}>{d.filename}</MenuItem>
@@ -99,13 +98,13 @@ export default function InferencePage() {
             </FormControl>
 
             <Button variant="contained" type="submit" disabled={!checkpoint||!dataset}>
-              Start Inference
+              Iniciar Inferência
             </Button>
           </Box>
         </Grid>
       </Grid>
 
       <JobStatusTable />
-    </Container>
+    </Box>
   );
 }

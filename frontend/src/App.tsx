@@ -11,13 +11,13 @@ function App() {
         <AppBar position="static">
           <Toolbar>
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              PFC WebApp - Network Traffic ML
+              Gerenciador de Aprendizado de Máquina
             </Typography>
             <Button color="inherit" component={Link} to="/train">
-              Training
+              Treinamento
             </Button>
             <Button color="inherit" component={Link} to="/infer">
-              Inference
+              Inferência
             </Button>
           </Toolbar>
         </AppBar>

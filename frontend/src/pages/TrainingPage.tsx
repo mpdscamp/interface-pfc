@@ -43,9 +43,8 @@ export default function TrainingPage() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>Model Training</Typography>
+      <Typography variant="h4" gutterBottom>Treinamento de modelos</Typography>
 
-      {/* uploader + form side-by-side */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
           <DatasetUploader onUploaded={loadDatasets}/>
@@ -56,8 +55,8 @@ export default function TrainingPage() {
             <form onSubmit={submit}>
               <Box sx={{ display:'flex', flexDirection:'column', gap:2 }}>
                 <FormControl fullWidth>
-                  <InputLabel>Model Family</InputLabel>
-                  <Select value={kind} label="Model Family"
+                  <InputLabel>Família de Modelos</InputLabel>
+                  <Select value={kind} label="Família de Modelos"
                           onChange={e => setKind(e.target.value as any)}>
                     <MenuItem value="tabular">Tabular (Random Forest)</MenuItem>
                     <MenuItem value="llm">LLM (DistilBERT)</MenuItem>
@@ -66,7 +65,7 @@ export default function TrainingPage() {
 
                 {kind === 'llm' && (
                   <TextField
-                    label="Model Name"
+                    label="Nome do Modelo"
                     value={modelName}
                     onChange={e => setModelName(e.target.value)}
                     required
@@ -75,8 +74,8 @@ export default function TrainingPage() {
                 )}
 
                 <FormControl fullWidth required>
-                  <InputLabel>Dataset</InputLabel>
-                  <Select value={dataset} label="Dataset"
+                  <InputLabel>Conjunto de Dados</InputLabel>
+                  <Select value={dataset} label="Conjunto de Dados"
                           onChange={e => setDataset(e.target.value)}>
                     {datasets.map(d => (
                       <MenuItem key={d.filename} value={d.filename}>{d.filename}</MenuItem>
@@ -89,7 +88,7 @@ export default function TrainingPage() {
                 <Button type="submit" variant="contained"
                   disabled={loading || !dataset}
                   startIcon={loading ? <CircularProgress size={20}/> : null}>
-                  Start Training
+                  Iniciar Treinamento
                 </Button>
               </Box>
             </form>
@@ -97,7 +96,6 @@ export default function TrainingPage() {
         </Grid>
       </Grid>
 
-      <Typography variant="h5" sx={{ mt:3 }}>Job Status</Typography>
       <JobStatusTable />
     </Box>
   );

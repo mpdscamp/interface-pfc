@@ -61,8 +61,8 @@ export default function DatasetUploader({ onUploaded }: Props) {
       }}
     >
       <CloudUploadIcon sx={{ fontSize: 40, mb: 1 }} color="action" />
-      <Typography>Drag & drop a CSV here, or</Typography>
-      <Button onClick={pickFile} variant="outlined" sx={{ mt: 1 }}>Browse</Button>
+      <Typography>Arraste e solte um CSV ou</Typography>
+      <Button onClick={pickFile} variant="outlined" sx={{ mt: 1 }}>Explorar Arquivos</Button>
 
       {loading && <CircularProgress size={24} sx={{ mt: 2 }} />}
       {msg && <Alert sx={{ mt:2 }} severity={msg.ok ? 'success' : 'error'}>{msg.text}</Alert>}
