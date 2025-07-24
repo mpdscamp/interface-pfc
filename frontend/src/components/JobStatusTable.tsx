@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close'
 import SaveIcon from '@mui/icons-material/Save'
+import DeleteIcon from '@mui/icons-material/Delete'
 import { Link as RouterLink } from 'react-router-dom';
 
 interface Job {
@@ -62,20 +63,29 @@ export default function JobStatusTable() {
                 <TableCell>{prettyKind(j.kind)}</TableCell>
                 <TableCell>{j.status}</TableCell>
                 <TableCell>
-                  {j.kind === 'llm_train' && j.status === 'RUNNING' && (
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Salvar checkpoint" placement="top">
-                        <IconButton size="small" color="info" onClick={() => saveCheckpoint(j.id)} aria-label="Salvar checkpoint">
-                          <SaveIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip placement="top" title="Encerrar Job">
-                        <IconButton size="small" color="error" onClick={() => stopJob(j.id)} aria-label="Encerrar job">
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    {j.kind === 'llm_train' && j.status === 'RUNNING' && (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Tooltip title="Salvar checkpoint" placement="top">
+                          <IconButton size="small" color="info" onClick={() => saveCheckpoint(j.id)} aria-label="Salvar checkpoint">
+                            <SaveIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip placement="top" title="Encerrar Job">
+                          <IconButton size="small" color="error" onClick={() => stopJob(j.id)} aria-label="Encerrar job">
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    )}
+                    {j.status === 'FAILED' && (
+                    <Tooltip title="Delete Job" placement="top">
+                      <IconButton size="small" color="error" aria-label="delete job" onClick={() => deleteJob(j.id)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   )}
+                  </Box>
                 </TableCell>
                 <TableCell sx={{ minWidth: 220 }}>
                   {j.status === 'RUNNING' ? (
@@ -122,3 +132,16 @@ const stopJob = async (jobId: string) => {
     console.error('Failed to stop job:', err);
   }
 };
+
+const deleteJob = async (jobId: string) => {
+  if (window.confirm('Tem certeza que quer deletar esse job? Esta ação não pode ser desfeita.')) {
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Falha ao deletar job');
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to delete job:', err);
+    }
+  }
+}
+

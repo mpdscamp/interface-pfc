@@ -114,6 +114,14 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     return JobStatus.from_orm(job)
 
 
+@app.delete("/api/jobs/{job_id}", status_code=204)
+def delete_job(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(Job).get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    db.delete(job)
+    db.commit()
+
 @app.post("/api/jobs/{job_id}/checkpoint/save")
 def api_save_checkpoint(job_id: str):
     db = next(get_db())
