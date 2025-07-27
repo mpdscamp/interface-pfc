@@ -1,14 +1,6 @@
 # PFC WebApp - Network Traffic ML Platform
 
-A minimal viable product (MVP) for fine-tuning and running inference on network traffic datasets using DistilBERT models.
-
-## Features
-
-- **Dataset Management**: Upload CSV network traffic datasets
-- **Model Training**: Start fine-tuning jobs for `distilbert-base-uncased` models
-- **Inference**: Run inference with trained model checkpoints
-- **Results Visualization**: View accuracy metrics and confusion matrices
-- **Job Monitoring**: Real-time status updates for all training and inference jobs
+A minimal viable product (MVP) for fine-tuning and running inference on network traffic flow datasets.
 
 ## Prerequisites
 
@@ -20,22 +12,14 @@ A minimal viable product (MVP) for fine-tuning and running inference on network 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd pfc-webapp
    ```
 
-2. **Prepare your datasets**
-   Place your CSV files in the `datasets/` directory:
-   ```bash
-   mkdir -p datasets
-   cp your-network-traffic-data.csv datasets/
-   ```
-
-3. **Start the application**
+2. **Start the application**
    ```bash
    docker compose up --build -d
    ```
 
-4. **Access the application**
+3. **Access the application**
    - Frontend: http://localhost:3000
    - API Documentation: http://localhost:8000/docs
 
@@ -45,32 +29,30 @@ A minimal viable product (MVP) for fine-tuning and running inference on network 
 /pfc-webapp/
 ├── backend/                 # FastAPI backend
 │   ├── app/
-│   │   ├── main.py         # API routes
-│   │   ├── models.py       # Database models
-│   │   ├── schemas.py      # Pydantic schemas
-│   │   ├── tasks.py        # Background tasks
-│   │   └── database.py     # SQLite setup
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── tasks.py
+│   │   └── database.py
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/               # React TypeScript frontend
 │   ├── src/
-│   │   ├── components/     # Reusable components
-│   │   ├── pages/          # Page components
-│   │   └── App.tsx         # Main app component
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── App.tsx
 │   ├── Dockerfile
 │   └── package.json
 ├── datasets/               # CSV datasets (volume)
+│   ├── pfc_webapp.db       # SQLite database
 ├── models_output/          # Model checkpoints and results
-│   ├── checkpoints/
-│   └── inference_results/
-├── pfc_webapp.db          # SQLite database
 └── docker-compose.yml
 ```
 
 ## Usage Guide
 
 ### 1. Upload Datasets
-Navigate to the Training page and use the upload feature to add CSV files to the system.
+Navigate to the Training/Inference page and use the upload feature to add CSV files to the system.
 
 ### 2. Train a Model
 - Go to the Training page
@@ -87,23 +69,26 @@ Navigate to the Training page and use the upload feature to add CSV files to the
 - View results when the job completes
 
 ### 4. View Results
-- Click "View Results" in the Job Status table for completed inference jobs
+- Click the information icon in the Job Status table for completed inference jobs
 - Review accuracy metrics and confusion matrix
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST   | `/api/jobs/train` | Start a training job |
-| POST   | `/api/jobs/infer` | Start an inference job |
-| GET    | `/api/jobs` | List all jobs |
-| GET    | `/api/jobs/{job_id}` | Get job status |
-| GET    | `/api/datasets` | List available datasets |
-| POST   | `/api/datasets/upload` | Upload a new dataset |
-| GET    | `/api/models` | List trained models |
-| GET    | `/api/results/{job_id}` | Get inference results |
+| Method | Endpoint                       | Description                 |
+|--------|--------------------------------|-----------------------------|
+| POST   | `/api/jobs/train`              | Start a training job        |
+| POST   | `/api/jobs/infer`              | Start an inference job      |
+| GET    | `/api/jobs`                    | List all jobs               |
+| GET    | `/api/jobs/{job_id}`           | Get job status              |
+| GET    | `/api/datasets`                | List available datasets     |
+| POST   | `/api/datasets/upload`         | Upload a new dataset        |
+| GET    | `/api/models`                  | List trained models         |
+| GET    | `/api/results/{job_id}`        | Get inference results       |
 
 ## Development
+
+Can be done inside a docker container environment with --reload setting. See backend/Dockerfile
+Otherwise, it can be run locally:
 
 ### Backend Development
 ```bash
@@ -119,7 +104,12 @@ npm install
 npm run dev
 ```
 
-## Troubleshooting
+## Potential issues
+
+### Driver issues
+- Install latest GPU drivers
+- Ensure docker is configured to access the GPU
+- Try launching mock containers that only try to access the GPU to troubleshoot what part is failing
 
 ### Container Issues
 - Check logs: `docker compose logs -f [backend|frontend]`
@@ -134,10 +124,3 @@ npm run dev
 - Frontend runs on port 3000
 - Backend runs on port 8000
 - Change ports in `docker-compose.yml` if needed
-
-## Notes
-
-- This is an MVP with simulated training/inference (using sleep)
-- Real ML implementation would replace the mock functions in `tasks.py`
-- SQLite database is used for simplicity (single file, no setup)
-- All data is persisted via Docker volumes
