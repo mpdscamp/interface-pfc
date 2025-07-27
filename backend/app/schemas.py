@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
 
-# ── payloads ────────────────────────────────────────────────────────────────
+# Payloads
 class JobCreateTrain(BaseModel):
     kind: str                   # "tabular" | "llm"
     model_name: str
@@ -14,10 +14,10 @@ class JobCreateTrain(BaseModel):
 class JobCreateInfer(BaseModel):
     kind: str                   # "tabular" | "llm"
     dataset_filename: str
-    checkpoint: str             # "*.joblib"  or  directory name
+    checkpoint_filename: str             # *.joblib  or  *.pt
 
 
-# ── responses ───────────────────────────────────────────────────────────────
+# Responses
 class JobStatus(BaseModel):
     id: str
     kind: str
@@ -31,4 +31,6 @@ class JobStatus(BaseModel):
 class InferenceResult(BaseModel):
     metrics: Dict[str, float]
     confusion_matrix: List[List[int]]
-    predictions: Optional[list] = None        # added so the JSON fits directly
+    predictions: Optional[list] = None
+    info: Optional[Dict[str, Any]] = None
+    plot_filename: Optional[str] = None

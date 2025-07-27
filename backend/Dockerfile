@@ -1,5 +1,5 @@
 FROM nvidia/cuda:12.9-base
-FROM pytorch/pytorch:2.2.0-cuda12.9-cudnn8-runtime
+FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
 
 # build tools for torch/tokenizers wheels
 RUN apt-get update && \
@@ -15,7 +15,7 @@ COPY app/ ./app/
 
 EXPOSE 8000
 # PROD: DO NOT HOT-RELOAD
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # RELOAD IN DEV
-# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

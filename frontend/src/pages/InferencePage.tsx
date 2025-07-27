@@ -44,7 +44,7 @@ export default function InferencePage() {
       const res = await fetch('/api/jobs/infer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, checkpoint, dataset_filename: dataset })
+        body: JSON.stringify({ kind, checkpoint_filename: checkpoint, dataset_filename: dataset })
       });
       if (!res.ok) throw new Error(`Server error: ${res.statusText}`);
       // you might want to reset your form here or show a notification

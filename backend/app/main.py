@@ -2,8 +2,10 @@ from uuid import uuid4
 from typing import List, Dict
 
 import os, json, threading
+import numpy as np
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, engine
@@ -25,9 +27,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATASETS_DIR        = "/datasets"
-TABULAR_CKPT_DIR    = "models_output/tabular_checkpoints"
-LLM_CKPT_DIR        = "models_output/llm_checkpoints"
+DATASETS_DIR      = "/datasets"
+TABULAR_CKPT_DIR  = "models_output/tabular_checkpoints"
+LLM_CKPT_DIR      = "models_output/llm_checkpoints"
+INFER_DIR         = "models_output/inference"
+
+app.mount(
+    "/inference-results",
+    StaticFiles(directory=INFER_DIR),
+    name="inference-results",
+)
 
 # --------------------------------------------------------------------------- #
 #                           DB helper (yield style)                           #
@@ -49,9 +58,9 @@ def create_train_job(payload: JobCreateTrain):
     """
     payload.kind  →  "tabular" | "llm"
     """
-    job_id = str(uuid4())
+    job_id = payload.model_name + '_' + str(uuid4())
     job = Job(
-        id=payload.model_name + job_id,
+        id=job_id,
         kind=f"{payload.kind}_train",
         model_name=payload.model_name,
         dataset_filename=payload.dataset_filename,
@@ -68,37 +77,28 @@ def create_train_job(payload: JobCreateTrain):
 
 
 @app.post("/api/jobs/infer", response_model=JobStatus)
-# def create_infer_job(payload: JobCreateInfer, background_tasks: BackgroundTasks):
 def create_infer_job(payload: JobCreateInfer):
-    """
-    payload.checkpoint is:
-        – *.joblib                   (tabular)
-        – <folder name under LLM_DIR>  (llm)
-    """
     job_id = str(uuid4())
-    kind = f"{payload.kind}_infer"
-    job_kwargs = dict(
+    kind   = f"{payload.kind}_infer"
+
+    job = Job(
         id=job_id,
         kind=kind,
         model_name="N/A",
         dataset_filename=payload.dataset_filename,
+        checkpoint_filename=payload.checkpoint_filename,
         status="QUEUED",
         progress=0,
     )
 
-    if payload.kind == "tabular":
-        job_kwargs["checkpoint_filename"] = payload.checkpoint
-    else:
-        job_kwargs["checkpoint_dir"] = payload.checkpoint
-
     db: Session = next(get_db())
-    db.add(Job(**job_kwargs)); db.commit()
+    db.add(job)
+    db.commit()
 
-    # background_tasks.add_task(run_job, job_id)
     t = threading.Thread(target=run_job, args=(job_id,), daemon=True)
     t.start()
-    return JobStatus.from_orm(Job(**job_kwargs))
 
+    return JobStatus.model_validate(job)
 
 @app.get("/api/jobs", response_model=List[JobStatus])
 def list_jobs(db: Session = Depends(get_db)):
@@ -111,7 +111,7 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     job = db.query(Job).get(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
-    return JobStatus.from_orm(job)
+    return JobStatus.model_validate(job)
 
 
 @app.delete("/api/jobs/{job_id}", status_code=204)
