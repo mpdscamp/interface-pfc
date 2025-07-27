@@ -1,5 +1,8 @@
-import os, csv, glob, math, datetime, random, sys, time
+import os, csv, math, datetime, random, sys, time, json, warnings
 from typing import Tuple, Dict, List, Callable
+from datetime import datetime
+import matplotlib.pyplot as plt
+import numpy as np
 
 import torch
 from torch.amp import GradScaler, autocast
@@ -11,6 +14,13 @@ from transformers import (
     AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
+from sklearn.metrics import (
+    precision_recall_fscore_support,
+    confusion_matrix,
+    classification_report,
+)
+from sklearn.exceptions import UndefinedMetricWarning
+
 
 # hard‑coded for now
 CANDIDATE_LABELS = [
@@ -83,7 +93,6 @@ class FineTuner:
         self.warmup_steps      = int(self.total_steps * self.warmup_ratio)
 
     def train(self) -> Tuple[str, Dict[str, float], List[List[int]]]:
-        self.start_time = time.time()
         # prepare optimizer, scheduler, scaler
         optimizer = AdamW(
             filter(lambda p: p.requires_grad, self.model.parameters()),
@@ -103,6 +112,7 @@ class FineTuner:
         history: List[List[int]] = []
         metrics: Dict[str, float] = {}
 
+        self.start_time = None
         for epoch in range(self.num_epochs):
             self.model.train()
             # deterministic shuffle
@@ -130,6 +140,8 @@ class FineTuner:
                 pin_memory  = True,
             )
 
+            if self.start_time is None:
+                self.start_time = time.perf_counter()
             pbar = tqdm(loader, total=len(loader), desc=f"Epoch {epoch+1}/{self.num_epochs}")
             for batch_idx, batch in enumerate(pbar):    
                 optimizer.zero_grad()
@@ -151,7 +163,7 @@ class FineTuner:
                 # progress callback
                 step     = epoch * self.batches_per_epoch + (batch_idx + 1)
                 progress = step / self.total_steps * 100
-                elapsed  = time.time() - self.start_time
+                elapsed  = time.perf_counter() - self.start_time
                 eta      = (elapsed / step) * (self.total_steps - step) if step > 0 else None
 
                 if self.update_progress_cb:
@@ -197,7 +209,7 @@ class FineTuner:
         epoch_loss: float = None,
         batches_done: int = None
     ):
-        now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
         fname = f"checkpoint-epoch{epoch+1}"
         if batch_idx is not None:
             fname += f"-batch{batch_idx+1}"
@@ -209,6 +221,7 @@ class FineTuner:
                 "epoch":                 epoch+1,
                 "batch_idx":             batch_idx,
                 "model_state_dict":      self.model.state_dict(),
+                "labels": CANDIDATE_LABELS,
                 "optimizer_state_dict":  self.optimizer.state_dict(),
                 "scheduler_state_dict":  self.scheduler.state_dict(),
                 "scaler_state_dict":     self.scaler.state_dict(),
@@ -219,7 +232,7 @@ class FineTuner:
             }, path)
 
             with open(self.log_file, "a") as log:
-                line = f"{datetime.datetime.now().isoformat()} | epoch {epoch+1}"
+                line = f"{datetime.now().isoformat()} | epoch {epoch+1}"
                 if batch_idx is not None:
                     line += f" | batch {batch_idx+1}"
                 if loss_val is not None:
@@ -286,6 +299,138 @@ def stop_training_llm(job_id: str):
     tuner.request_stop()
 
 
+def infer_llm(
+    ckpt_path: str,
+    dataset_path: str,
+    output_root: str,
+    update_progress_cb=None,
+) -> tuple[dict, list[list[int]], str]:
+    """
+    Load the finetuned model from `ckpt_path`, run inference on
+    `dataset_path` (a CSV), compute metrics, confusion matrix, and save:
+      • raw preds
+      • summary.txt (classification report)
+      • info.json (run info)
+      • confusion_matrix.png
+    Returns (metrics_dict, confusion_matrix, path_to_result_json).
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # assume MODEL_NAME is recoverable or fixed per your project; you can hard‑code or pass it in
+    MODEL_NAME = "distilbert-base-uncased"
+    LABELS = ["Benign", "Botnet", "Brute_Force_Attack",
+              "DoS_Attack", "Port_Scan_Infiltration",
+              "Web_Attack", "Other"]
+
+    # 1) load tokenizer + model
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_NAME,
+        num_labels=len(LABELS),
+    ).to(device)
+    ckpt = torch.load(ckpt_path, map_location=device)
+    LABELS = ckpt.get("labels", CANDIDATE_LABELS)
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+
+    # 2) read CSV & normalize to canonical LABELS
+    rows = list(csv.DictReader(open(dataset_path)))
+    texts, true = [], []
+    # build mapping from uppercase → canonical label
+    label_map = {lbl.upper(): lbl for lbl in LABELS}
+
+    for r in rows:
+        feat = {k: v for k, v in r.items() if k.strip().lower() != "label"}
+        texts.append("; ".join(f"\"{k}\":{v}\"" for k, v in feat.items()))
+        raw = r["Label"].strip().upper()
+        # map to canonical case if possible, else keep raw
+        true.append(label_map.get(raw, raw))
+
+    # 3) batched inference
+    preds = []
+    BS = 8
+    for i in range(0, len(texts), BS):
+        batch = texts[i : i + BS]
+        toks = tokenizer(batch, padding=True, truncation=True, return_tensors="pt").to(device)
+        with torch.no_grad():
+            logits = model(**toks).logits
+        idxs = torch.argmax(logits, 1).cpu().tolist()
+        preds.extend([LABELS[i] for i in idxs])
+
+    # 4) metrics + CM
+    y_true = true
+    y_pred = preds
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
+        prec, rec, f1, _ = precision_recall_fscore_support(
+            y_true,
+            y_pred,
+            labels=LABELS,
+            zero_division=0,
+        )
+        report = classification_report(
+            y_true,
+            y_pred,
+            labels=LABELS,
+            digits=4,
+            zero_division=0,
+        )
+
+    metrics = {
+        "precision": float(round(prec[1], 4)),
+        "recall":    float(round(rec[1], 4)),
+        "f1_score":  float(round(f1[1], 4)),
+    }
+
+    cm = confusion_matrix(y_true, y_pred, labels=LABELS).tolist()
+ 
+    # 5) prepare output dir
+    today = datetime.now().strftime("%Y-%m-%d")
+    out_dir = os.path.join(output_root, "inference", today)
+    os.makedirs(out_dir, exist_ok=True)
+
+    # save raw preds
+    with open(os.path.join(out_dir, "raw_predictions.txt"), "w") as f:
+        for i,(t,p) in enumerate(zip(y_true,y_pred)):
+            f.write(f"{i}: {t} → {p}\n")
+
+    # save summary
+    with open(os.path.join(out_dir, "summary.txt"), "w") as f:
+        f.write("Classification Report:\n")
+        f.write(report)
+
+    # save info.json
+    info = {
+        "date": today,
+        "model_name": MODEL_NAME,
+        "checkpoint": os.path.basename(ckpt_path),
+        "dataset": os.path.basename(dataset_path),
+        "total_samples": len(texts),
+        **metrics,
+    }
+    with open(os.path.join(out_dir, "info.json"), "w") as f:
+        json.dump(info, f, indent=2)
+
+    # plot confusion matrix with class names + cell counts
+    plot_confusion_matrix(
+        np.array(cm),
+        LABELS,
+        os.path.join(out_dir, "confusion_matrix.png"),
+    )
+    
+    # save a top‑level result.json for API
+    result = {
+        "metrics": metrics,
+        "confusion_matrix": cm,
+        "info": info,
+        "plot_filename": "confusion_matrix.png",
+    }
+    result_path = os.path.join(out_dir, "result.json")
+    with open(result_path, "w") as f:
+        json.dump(result, f, indent=2)
+
+    return metrics, cm, result_path
+
+
 class IndexedCSV(Dataset):
     def __init__(self, csv_path, offsets, header, tokenizer, max_length, indices):
         self.csv_path   = csv_path
@@ -330,3 +475,53 @@ class IndexedCSV(Dataset):
             "attention_mask": tokens["attention_mask"].squeeze(0),
             "labels":         torch.tensor(label, dtype=torch.long),
         }
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_confusion_matrix(cm: np.ndarray, labels: list[str], out_path: str):
+    fig, ax = plt.subplots(figsize=(8, 8))
+    im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.YlGnBu)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Count", rotation=-90, va="bottom")
+
+    # set ticks
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+
+    # rotate x‑labels
+    plt.setp(
+        ax.get_xticklabels(),
+        rotation=45,
+        ha="right",
+        rotation_mode="anchor",
+        fontsize=10,
+    )
+    plt.setp(ax.get_yticklabels(), fontsize=10)
+
+    # annotate each cell with its count
+    thresh = cm.max() / 2.0
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            color = "white" if cm[i, j] > thresh else "black"
+            ax.text(
+                j,
+                i,
+                f"{cm[i, j]:d}",
+                ha="center",
+                va="center",
+                color=color,
+                fontsize=9,
+            )
+
+    ax.set_ylabel("Actual")
+    ax.set_xlabel("Predicted")
+
+    # make room on the bottom and left for long labels
+    fig.tight_layout()
+    plt.subplots_adjust(bottom=0.25, left=0.25)
+
+    plt.savefig(out_path, dpi=150)
+    plt.close(fig)
